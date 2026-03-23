@@ -149,3 +149,205 @@ With the position functions computed, the NFA is assembled as follows:
 - **Accept states:** all positions in `lastpos` of the root AST node. Additionally, state 0 is an accept state if the root node is nullable (i.e. the regex matches the empty string).
 - **Transitions from state 0:** for each position p in `firstpos` of the root node, add a transition from state 0 on the symbol at position p to state p.
 - **Transitions from state p (p > 0):** for each position q in `followpos(p)`, add a transition from state p on the symbol at position q to state q.
+
+Because dot (`.`) matches any character, transitions labelled with a dot position are expanded to one transition arc per possible input character (all 256 byte values).
+
+### 5.8 NFA Representation
+
+Each NFA is described by a set of numbered states. Each state carries: a unique integer identifier, a Boolean flag indicating whether it is an accept state, and a map from input characters to sets of destination states. There are no ε-transitions. The total number of states for a given regex is exactly equal to the number of symbol occurrences plus one.
+
+### 5.9 Global State Numbering
+
+All NFA states across all N NFAs share a single global numbering space. This avoids identifier collisions when multiple NFAs are emitted into a single Vivado project.
+
+---
+
+## 6. Stage 3 — C++ Verilog Emitter
+
+### 6.1 Overview
+
+The emitter walks each NFA and produces a self-contained Verilog module. It also produces a top-level wrapper module and a simulation testbench. All output files are written to the `output/` directory.
+
+Because Glushkov's construction produces ε-free NFAs, the emitter requires no combinational ε-closure logic. Every transition is labelled with a concrete character, and the next-state logic is a straightforward combinational decode of `char_in` gated by the currently active states. This results in clean, purely registered FSMs with no combinational feedback paths.
+
+### 6.2 Per-NFA Module Interface
+
+Each NFA produces one Verilog module. The module's ports are:
+
+- `clk` — clock input.
+- `rst` — synchronous active-high reset.
+- `start` — a one-cycle pulse that initialises the FSM to its start state, beginning a new match attempt.
+- `end_of_str` — a one-cycle pulse asserted one cycle after the final character of the input string.
+- `char_in` — an 8-bit input carrying the current ASCII character.
+- `match` — a registered output that is asserted for one cycle when the FSM is in an accept state at the moment `end_of_str` is asserted.
+
+### 6.3 One-Hot State Encoding
+
+The state register inside each module is one-hot: there is one flip-flop per NFA state. A bit being set means that NFA state is currently active. Because the NFA is non-deterministic, multiple bits may be set simultaneously, faithfully representing the parallel set of active NFA states.
+
+On reset or on the `start` pulse, the state register is cleared and only the bit corresponding to state 0 (the initial state) is set.
+
+### 6.4 Next-State Logic
+
+The next-state logic is purely combinational and free of any ε-closure computation. For each state j, its next-state bit is asserted if any currently active state i has a transition to j on the current value of `char_in`. The resulting next-state vector is registered on the rising clock edge.
+
+### 6.5 Match Output Logic
+
+The `match` output is registered. It is asserted on the cycle following the cycle on which `end_of_str` is asserted, provided that at least one accept-state bit is active in the state register at the time `end_of_str` is seen. This ensures correct matching for both non-empty and empty strings (if the regex is nullable).
+
+### 6.6 Top-Level Wrapper Module
+
+A single top-level Verilog module instantiates all N NFA modules. All instances share the same `clk`, `rst`, `start`, `end_of_str`, and `char_in` signals. Each instance drives one bit of an N-bit `match` output bus, where bit k corresponds to NFA k.
+
+### 6.7 Emitter Output Files
+
+| File                   | Contents                                        |
+| ---------------------- | ----------------------------------------------- |
+| `nfa_0.v` … `nfa_N.v`  | One self-contained FSM module per regex         |
+| `top.v`                | Top-level wrapper instantiating all NFA modules |
+| `tb_top.v`             | Simulation testbench                            |
+| `expected_matches.txt` | Golden reference output for validation          |
+
+---
+
+## 7. Stage 4 — Simulation Testbench
+
+### 7.1 Structure
+
+The testbench instantiates `top` and drives all its inputs. It operates as follows for each test string:
+
+1. Assert `rst` for a fixed number of cycles to initialise all FSMs.
+2. Assert `start` for one cycle.
+3. Drive `char_in` with successive characters of the test string, one per clock cycle.
+4. On the cycle following the last character, assert `end_of_str` for one cycle.
+5. Sample `match` on the following cycle and compare it against the expected bitmask from the golden reference.
+6. Print a PASS or FAIL message for each test case, including the test string and the observed versus expected match bitmasks.
+
+### 7.2 Waveform Dump
+
+The testbench dumps all signals to a VCD file for inspection in Vivado's waveform viewer.
+
+### 7.3 Timing Assumptions
+
+- The clock period is fixed at 10 ns.
+- `char_in` is stable before the rising clock edge.
+- All control signals (`start`, `end_of_str`) are synchronous and held for exactly one cycle.
+
+---
+
+## 8. Stage 5 — Golden Reference
+
+A separate C++ program reads `regexes.txt` and `test_strings.txt`, runs each test string against each regex using the C++ standard library's full-match mode, and writes `expected_matches.txt`. Each line of the output corresponds to one test string and contains a bitmask (or equivalent structured text) indicating which regexes matched.
+
+This output is consumed by the testbench generator and used during simulation to validate the Verilog results.
+
+---
+
+## 9. Build System and Project Structure
+
+### 9.1 Directory Layout
+
+```
+project/
+├── regexes.txt
+├── test_strings.txt
+│
+├── src/
+│   ├── main.cpp
+│   ├── lexer.h / lexer.cpp
+│   ├── parser.h / parser.cpp
+│   ├── nfa.h / nfa.cpp
+│   └── emitter.h / emitter.cpp
+│
+├── golden/
+│   └── golden.cpp
+│
+└── output/
+    ├── nfa_0.v … nfa_N.v
+    ├── top.v
+    ├── tb_top.v
+    └── expected_matches.txt
+```
+
+### 9.2 Build and Run Order
+
+The pipeline is executed in the following sequence:
+
+1. Compile and run the C++ frontend on `regexes.txt` to produce all Verilog files and `expected_matches.txt`.
+2. Compile and run the golden reference binary on `regexes.txt` and `test_strings.txt` to produce or verify `expected_matches.txt`.
+3. Import all Verilog files into a Xilinx Vivado project.
+4. Run behavioural simulation; confirm all test cases report PASS.
+5. Run synthesis and implementation targeting the chosen FPGA part.
+6. Review timing and resource utilisation reports.
+
+---
+
+## 10. Validation Strategy
+
+### 10.1 Unit Testing the C++ Frontend
+
+Each C++ component is tested independently before integration:
+
+- The lexer is verified against a set of regex strings by inspecting the token stream it produces.
+- The parser is verified by comparing its AST output against hand-drawn trees for representative regexes.
+- The NFA builder is verified by checking, for representative regexes, that the linearisation is correct, that the firstpos, lastpos, and followpos sets match hand-computed values, and that the resulting state and transition counts equal the number of symbol occurrences plus one.
+- The emitter is verified by compiling its output in Vivado and confirming the modules are syntax-valid.
+
+### 10.2 Simulation Validation
+
+Every test case in the testbench must produce a match bitmask identical to the golden reference output. Any discrepancy is a bug in the NFA construction logic or the emitter.
+
+### 10.3 Synthesis Validation
+
+After synthesis and implementation, the following are checked:
+
+- No combinational loops reported by Vivado (expected to be clean given the ε-free NFA structure).
+- Timing closure achieved at the target clock frequency (10 ns period).
+- One-hot encoding inferred correctly for all state registers (confirmed via synthesis log).
+- Resource utilisation (LUT and FF count) scales reasonably with the number of symbol occurrences in the regex set.
+
+---
+
+## 11. Known Design Constraints and Risks
+
+### 11.1 One-Hot State Register Size
+
+One-hot encoding allocates one flip-flop per NFA state. Glushkov's construction produces exactly one state per symbol occurrence plus one initial state — generally fewer states than Thompson's construction for the same regex. With fewer than 20 regexes and relatively simple patterns this is not expected to be problematic, but unusually long or repetitive regexes should be monitored for excessive flip-flop usage.
+
+### 11.2 Dot Operator Fan-Out
+
+The dot operator (`.`) matches any of the 256 possible byte values. Each dot position in the NFA produces transition arcs to its followpos targets for all 256 input characters. Heavy use of dot in patterns will increase LUT usage in the next-state logic accordingly.
+
+### 11.3 Full Match Only
+
+The system performs full-match checking only. Substring search is not supported. Any future extension to substring matching would require changes to how the `start` signal is managed, specifically recycling the FSM from state 0 on every input character.
+
+### 11.4 Shared Symbol Positions Across Regexes
+
+Because all N NFAs share a global state numbering space, the emitter must ensure that position labels assigned during linearisation of one regex do not collide with those of another. This is managed by maintaining a running position counter across all regexes during the construction phase.
+
+---
+
+## 12. Out of Scope
+
+The following are explicitly not part of this project:
+
+- Character classes (`[a-z]`, `[^abc]`, etc.)
+- Anchors (`^` and `$`)
+- Backreferences or capture groups
+- Unicode support (ASCII only)
+- Intersection of regular languages
+- Substring or multi-match modes
+- AXI-Stream or other bus-protocol interfaces
+- Formal verification
+- A graphical front-end or interactive tooling
+
+---
+
+## 13. Stage 5 — FPGA I/O Integration
+
+### 13.1 UART Transmitter (`uart_tx.v`)
+
+| Property   | Value                                                                                         |
+| ---------- | --------------------------------------------------------------------------------------------- |
+| Framing    | 8-N-1                                                                                         |
