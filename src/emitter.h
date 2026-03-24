@@ -38,3 +38,15 @@ private:
     static void emitUARTRX(const std::filesystem::path &outputDir);
 
     // UART TX transmitter
+    static void emitUARTTX(const std::filesystem::path &outputDir);
+
+    // Circular FIFO buffer between uart_rx and the NFA engine
+    static void emitFIFO(const std::filesystem::path &outputDir);
+
+    // Top FPGA module
+    static void emitTopFPGA(const std::vector<std::unique_ptr<NFA>> &nfas, const std::filesystem::path &outputDir);
+
+    static void emitConstraints(const std::vector<std::unique_ptr<NFA>> &nfas, const std::filesystem::path &outputDir);
+};
+
+#endif // EMITTER_H
