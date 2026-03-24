@@ -351,3 +351,108 @@ The following are explicitly not part of this project:
 | Property   | Value                                                                                         |
 | ---------- | --------------------------------------------------------------------------------------------- |
 | Framing    | 8-N-1                                                                                         |
+| Baud rate  | Parameterised; default 115200 at 100 MHz (`CLKS_PER_BIT = 868`)                               |
+| Data order | LSB first (standard UART)                                                                     |
+| Interface  | `tx_data [7:0]`, `tx_start` (one-cycle pulse), `tx_busy` (high during Tx), `tx` (serial line) |
+
+The transmitter implements a 4-state Moore FSM (`IDLE → START_BIT → DATA_BITS → STOP_BIT`). The serial line idles high. `tx_busy` is asserted for the entire duration of a frame (start + 8 data + stop = 10 × `CLKS_PER_BIT` clock cycles). The caller must poll `tx_busy` before asserting the next `tx_start`.
+
+---
+
+### 13.2 Input FIFO (`uart_rx_fifo.v`)
+
+| Property         | Value                                                                      |
+| ---------------- | -------------------------------------------------------------------------- |
+| Depth            | 16 bytes (parameterisable via `DEPTH_LOG2`)                                |
+| Width            | 8 bits                                                                     |
+| RAM type         | Distributed RAM (SRL16 on Xilinx 7-series)                                 |
+| Clock domains    | Single-clock; no grey-code synchronisation required                        |
+| Overflow policy  | Silently drops incoming byte when `full` is asserted                       |
+| Underflow policy | `rd_data` is undefined when `empty` is asserted; caller must check `empty` |
+
+The FIFO replaces the previous `rx_latched_data` / `rx_pending` single-byte latch. With up to a 16-byte buffer, the NFA control FSM can spend several cycles on the end-of-string / UART-TX sequence without risking byte loss for any input string up to the FIFO depth.
+
+---
+
+### 13.3 Updated `top_fpga.v`
+
+#### 13.3.1 Instantiation hierarchy
+
+```
+top_fpga
+├── uart_rx         (UART byte receiver)
+├── uart_rx_fifo    (16-byte input FIFO)      ← NEW
+├── top             (parallel NFA engine)
+├── uart_tx         (UART byte transmitter)   ← NEW
+└── [control FSM + TX serializer FSM]         ← UPDATED
+```
+
+#### 13.3.2 Main control FSM
+
+The main FSM has 12 states (previously 6). The key additions are:
+
+- **`S_FETCH` / `S_DECODE`**: Read from the FIFO rather than from a latch; classify the byte as a printable character, a line terminator, or a `?` query.
+- **`S_EOL_LATCH`**: After capturing `match_bus`, update all `match_count[k]` registers and snapshot `byte_count` for inclusion in the TX packet.
+- **`S_TX_ARM`**: Invoke the `build_response` task to format the ASCII response into `tx_buf[0..tx_len-1]` and pulse `tx_send`.
+- **`S_TX_WAIT`**: Spin until the TX drain sub-FSM completes (`tx_state == TX_IDLE`).
+- **`S_QUERY_TX`**: Service a `?` byte from the host — build and send a counter snapshot immediately without modifying NFA state.
+
+#### 13.3.3 TX drain sub-FSM
+
+A 4-state FSM (`TX_IDLE → TX_LOAD → TX_WAIT → TX_NEXT`) drains `tx_buf` byte-by-byte through `uart_tx`. It runs concurrently with the main FSM; the main FSM simply waits in `S_TX_WAIT`.
+
+#### 13.3.4 `build_response` task
+
+A synthesisable Verilog `task` that takes the match bitmask and byte counter as inputs and writes a fixed-format ASCII response string into the `tx_buf` register array. The task executes combinationally within the `always` block and completes in a single clock cycle (no loops remain in the synthesised netlist — they are unrolled at elaboration time).
+
+#### 13.3.5 Hardware counters
+
+```verilog
+reg [31:0] byte_count;          // total NFA input bytes since reset
+reg [15:0] match_count [0:15];  // per-regex cumulative match events
+```
+
+Both are synchronously reset by `rst_btn`. `match_count[k]` is incremented on every newline event where `match_bus[k]` is asserted.
+
+---
+
+### 13.4 Serial Protocol
+
+#### Host → FPGA
+
+| Byte(s)                         | Meaning                                                        |
+| ------------------------------- | -------------------------------------------------------------- |
+| Any printable ASCII (0x20–0x7E) | Feed character to NFA engine                                   |
+| `\n` (0x0A) or `\r` (0x0D)      | Assert `end_of_str`; trigger match + response                  |
+| `?` (0x3F)                      | Query current counters; response sent without NFA state change |
+
+#### FPGA → Host
+
+One ASCII line per `\n` / `?` event:
+
+```
+MATCH=<N bits, MSB first> BYTES=<8 hex> HITS=<4 hex per regex, comma-sep>\r\n
+```
+
+---
+
+### 13.5 Python TUI (`tui.py`)
+
+| Aspect         | Detail                                                                        |
+| -------------- | ----------------------------------------------------------------------------- |
+| Dependencies   | `pyserial`, `rich`                                                            |
+| Connection     | Auto-detects first USB-Serial port; overridable with `--port`                 |
+| Display        | Live Rich table: regex index, pattern string, MATCH/NO-MATCH, cumulative hits |
+| Background I/O | UART reads on a daemon thread; UI never blocks on serial                      |
+| Commands       | Plain string → send to FPGA; `?` → counter query; `q` / Ctrl-C → exit         |
+
+---
+
+### 13.6 Timing Budget
+
+At 100 MHz, one complete string-processing cycle from `\n` receipt to TX-complete takes:
+
+- **NFA end-of-string sequence:** 3 clock cycles (S_EOL_END / S_EOL_MATCH / S_EOL_LATCH)
+- **TX packet transmission:** ≈ 95 bytes × 10 bit-times × 868 cycles/bit ≈ 825,000 clock cycles ≈ **8.25 ms**
+
+This is dominated by the 115200 baud UART and is entirely acceptable for an interactive workload. The NFA engine itself remains line-rate capable; the UART is the limiting factor only at the host interface boundary.
