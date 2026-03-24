@@ -41,3 +41,16 @@
 *.dwo
 output/
 
+# Final Executable
+build/
+
+# Vivado Files
+*.bit
+*.jou
+*.log
+clockInfo.txt
+dfx_runtime.txt
+.Xil/
+
+# Python TUI
+.venv

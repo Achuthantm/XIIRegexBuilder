@@ -194,3 +194,62 @@ S_IDLE  ──► S_FETCH ──► S_DECODE ──► S_CHAR_LOAD ──► S_C
                              └── ('?') ──► S_QUERY_TX ──► S_TX_WAIT
 ```
 
+- `S_IDLE` / `S_FETCH` / `S_DECODE`: pop the FIFO and classify the byte.
+- `S_CHAR_LOAD` / `S_CHAR_STEP`: feed one character into the NFA; increment `byte_count`.
+- `S_EOL_END` / `S_EOL_MATCH` / `S_EOL_LATCH`: assert `end_of_str`, clock the match flip-flops, capture `match_bus`, update `match_count[k]` for every matched regex, and latch the result to `match_leds`.
+- `S_TX_ARM`: call the `build_response` task to serialise the ASCII response into the TX buffer; pulse `tx_send`.
+- `S_TX_WAIT`: wait for the TX drain sub-FSM to finish before resetting the NFA.
+- `S_RESET_NFA`: assert `nfa_start + nfa_en` for one cycle to re-initialise all NFA FSMs.
+- `S_QUERY_TX`: handle the `?` command — build a counter snapshot and transmit without feeding any character to the NFA.
+
+#### TX Drain Sub-FSM (4 states)
+
+A separate small FSM drains the ASCII TX buffer byte-by-byte through `uart_tx`:
+
+```
+TX_IDLE ──► TX_LOAD ──► TX_WAIT ──► TX_NEXT ──► (TX_LOAD if more bytes, else TX_IDLE)
+```
+
+This sub-FSM runs concurrently with the control FSM, which simply waits in `S_TX_WAIT` until `tx_state == TX_IDLE`.
+
+#### Hardware Counters
+
+| Register         | Width        | Description                                                          |
+| ---------------- | ------------ | -------------------------------------------------------------------- |
+| `byte_count`     | 32 bits      | Total bytes fed to the NFA engine since the last hardware reset      |
+| `match_count[k]` | 16 bits each | Cumulative match events for regex _k_; up to 16 independent counters |
+
+Both are cleared by asserting `rst_btn`. Values are transmitted as part of every response packet.
+
+#### Response Packet Format
+
+```
+MATCH=<N-bit binary> BYTES=<8 hex digits> HITS=<4 hex per regex, comma-separated>\r\n
+```
+
+The `build_response` Verilog task constructs this string in a 128-byte register array at synthesis time (combinational logic mapped to LUTs), then stores it in `tx_buf`. No block RAM is required for the TX buffer.
+
+---
+
+### 4.4 Python TUI (`tui.py`)
+
+A terminal user interface for interactive testing from any host PC.
+
+**Dependencies:** `pip install pyserial rich`
+
+**Usage:**
+
+```bash
+python tui.py --port /dev/ttyUSB0 --regexes inputs/regexes.txt
+```
+
+The port is auto-detected if omitted (first USB-Serial device found).
+
+**Features:**
+
+- Live colour-coded match table: green `● MATCH` / dim red `○ —` per regex.
+- Running totals: total bytes processed and per-regex cumulative hit count.
+- Input history in the prompt.
+- Background reader thread handles FPGA responses without blocking the UI.
+- `?` query support: displays current counters without sending a test string.
+- Graceful exit on `q`, `quit`, or Ctrl-C.
