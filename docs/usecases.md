@@ -23,3 +23,11 @@ Modern financial markets generate enormous volumes of structured text — orders
 ## Why FPGA and Not Just Faster Software?
 
 The fundamental advantage is parallelism. A software engine checks N regexes sequentially — throughput degrades linearly as N grows. An FPGA runs all N FSMs in the same clock cycle, so throughput is flat regardless of how many patterns are active. At scale, no amount of SIMD optimisation closes that gap.
+
+The second advantage is determinism. Software latency varies with cache state, OS scheduling, and branching behaviour. Hardware latency is a fixed number of clock cycles, every time — essential when a one-microsecond edge translates directly into profit.
+
+---
+
+## The Bottom Line
+
+In quantitative finance, the matching decision needs to happen before any further processing, on a continuous high-speed stream, against many patterns simultaneously, with the lowest and most predictable latency possible. That is precisely the problem this system is designed to solve.
