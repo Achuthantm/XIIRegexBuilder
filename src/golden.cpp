@@ -1,0 +1,31 @@
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <vector>
+#include <regex>
+#include <iomanip>
+#include <algorithm>
+
+std::string trim(const std::string& str) {
+    size_t first = str.find_first_not_of(" \t\r\n");
+    if (first == std::string::npos) return "";
+    size_t last = str.find_last_not_of(" \t\r\n");
+    return str.substr(first, (last - first + 1));
+}
+
+int main(int argc, char* argv[]) {
+    if (argc < 3) {
+        std::cerr << "Usage: " << argv[0] << " <regex_file> <test_strings_file> [output_file]" << std::endl;
+        return 1;
+    }
+
+    std::string regexFilename = argv[1];
+    std::string testFilename = argv[2];
+    std::string outputFilename = (argc > 3) ? argv[3] : "expected_matches.txt";
+
+    std::ifstream regexFile(regexFilename);
+    if (!regexFile.is_open()) {
+        std::cerr << "Failed to open " << regexFilename << std::endl;
+        return 1;
+    }
+
