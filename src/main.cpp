@@ -37,3 +37,57 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    std::string line;
+    int lineNum = 0;
+    int regexIdx = 0;
+    std::vector<std::unique_ptr<NFA>> nfas;
+    std::vector<std::string> rawRegexes;
+
+    std::cout << "Starting XIIRegexBuilder pipeline..." << std::endl;
+
+    while (std::getline(regexFile, line)) {
+        lineNum++;
+        std::string trimmedLine = trim(line);
+        if (trimmedLine.empty() || trimmedLine[0] == '#') continue;
+
+        std::cout << "Processing Regex [" << regexIdx << "]: " << trimmedLine << std::endl;
+
+        Lexer lexer(trimmedLine, lineNum);
+        try {
+            std::vector<Token> tokens = lexer.tokenize();
+            Parser parser(tokens);
+            auto ast = parser.parse();
+            auto nfa = NFABuilder::build(ast.get(), regexIdx);
+            if (nfa) {
+                nfas.push_back(std::move(nfa));
+                rawRegexes.push_back(trimmedLine);
+                regexIdx++; // Increment only on success
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Error parsing regex: " << e.what() << std::endl;
+        }
+    }
+
+    if (nfas.empty()) {
+        std::cerr << "No valid regexes found. Exiting." << std::endl;
+        return 1;
+    }
+
+    std::vector<std::string> testStrings;
+    std::vector<std::string> expectedMatches;
+
+    if (!testFilename.empty()) {
+        std::ifstream testFile(testFilename);
+        if (testFile.is_open()) {
+            std::string tline;
+            while (std::getline(testFile, tline)) {
+                size_t last = tline.find_last_not_of("\r\n");
+                std::string s = (last != std::string::npos) ? tline.substr(0, last + 1) : (tline.empty() ? "" : tline);
+                
+                // Skip comments and truly blank lines
+                if (!s.empty() && s[0] == '#') continue;
+                if (s.empty() && trim(tline).empty()) continue;
+
+                testStrings.push_back(s);
+                
+                // Generate expected matches using std::regex
