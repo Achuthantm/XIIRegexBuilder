@@ -86,3 +86,121 @@ std::unique_ptr<NFA> NFABuilder::build(ASTNode* root, int regexIdx) {
             nfa->addTransition(localToGlobal[0], c, localToGlobal[p]);
         }
     }
+
+    // Transitions from state p > 0
+    for (int p = 1; p <= numPositions; ++p) {
+        for (int q : followpos[p]) {
+            if (dotPositions.find(q) != dotPositions.end()) { // DOT
+                for (int val = 32; val <= 126; ++val) {
+                    nfa->addTransition(localToGlobal[p], static_cast<unsigned char>(val), localToGlobal[q]);
+                }
+            } else {
+                unsigned char c = posToChar[q];
+                nfa->addTransition(localToGlobal[p], c, localToGlobal[q]);
+            }
+        }
+    }
+
+    return nfa;
+}
+
+void NFABuilder::linearize(ASTNode* node, int& posCounter, std::map<int, unsigned char>& posToChar, std::set<int>& dotPositions) {
+    if (!node) return;
+    switch (node->type) {
+        case ASTNodeType::LITERAL: {
+            auto n = static_cast<LiteralNode*>(node);
+            n->position = posCounter++;
+            posToChar[n->position] = static_cast<unsigned char>(n->value);
+            break;
+        }
+        case ASTNodeType::DOT: {
+            auto n = static_cast<DotNode*>(node);
+            n->position = posCounter++;
+            dotPositions.insert(n->position);
+            break;
+        }
+        case ASTNodeType::CONCATENATION: {
+            auto n = static_cast<ConcatenationNode*>(node);
+            linearize(n->left.get(), posCounter, posToChar, dotPositions);
+            linearize(n->right.get(), posCounter, posToChar, dotPositions);
+            break;
+        }
+        case ASTNodeType::UNION: {
+            auto n = static_cast<UnionNode*>(node);
+            linearize(n->left.get(), posCounter, posToChar, dotPositions);
+            linearize(n->right.get(), posCounter, posToChar, dotPositions);
+            break;
+        }
+        case ASTNodeType::STAR: {
+            auto n = static_cast<StarNode*>(node);
+            linearize(n->inner.get(), posCounter, posToChar, dotPositions);
+            break;
+        }
+        case ASTNodeType::PLUS: {
+            auto n = static_cast<PlusNode*>(node);
+            linearize(n->inner.get(), posCounter, posToChar, dotPositions);
+            break;
+        }
+        case ASTNodeType::OPTIONAL: {
+            auto n = static_cast<OptionalNode*>(node);
+            linearize(n->inner.get(), posCounter, posToChar, dotPositions);
+            break;
+        }
+    }
+}
+
+void NFABuilder::computeNullableFirstLast(ASTNode* node) {
+    if (!node) return;
+    switch (node->type) {
+        case ASTNodeType::LITERAL: {
+            auto n = static_cast<LiteralNode*>(node);
+            n->nullable = false;
+            n->firstpos = {n->position};
+            n->lastpos = {n->position};
+            break;
+        }
+        case ASTNodeType::DOT: {
+            auto n = static_cast<DotNode*>(node);
+            n->nullable = false;
+            n->firstpos = {n->position};
+            n->lastpos = {n->position};
+            break;
+        }
+        case ASTNodeType::CONCATENATION: {
+            auto n = static_cast<ConcatenationNode*>(node);
+            computeNullableFirstLast(n->left.get());
+            computeNullableFirstLast(n->right.get());
+            n->nullable = n->left->nullable && n->right->nullable;
+            
+            n->firstpos = n->left->firstpos;
+            if (n->left->nullable) {
+                n->firstpos.insert(n->right->firstpos.begin(), n->right->firstpos.end());
+            }
+            
+            n->lastpos = n->right->lastpos;
+            if (n->right->nullable) {
+                n->lastpos.insert(n->left->lastpos.begin(), n->left->lastpos.end());
+            }
+            break;
+        }
+        case ASTNodeType::UNION: {
+            auto n = static_cast<UnionNode*>(node);
+            computeNullableFirstLast(n->left.get());
+            computeNullableFirstLast(n->right.get());
+            n->nullable = n->left->nullable || n->right->nullable;
+            
+            n->firstpos = n->left->firstpos;
+            n->firstpos.insert(n->right->firstpos.begin(), n->right->firstpos.end());
+            
+            n->lastpos = n->left->lastpos;
+            n->lastpos.insert(n->right->lastpos.begin(), n->right->lastpos.end());
+            break;
+        }
+        case ASTNodeType::STAR: {
+            auto n = static_cast<StarNode*>(node);
+            computeNullableFirstLast(n->inner.get());
+            n->nullable = true;
+            n->firstpos = n->inner->firstpos;
+            n->lastpos = n->inner->lastpos;
+            break;
+        }
