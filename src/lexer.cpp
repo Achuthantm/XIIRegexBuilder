@@ -24,3 +24,37 @@ char Lexer::peek() const {
     return input[pos];
 }
 
+char Lexer::advance() {
+    char current = input[pos++];
+    col++;
+    return current;
+}
+
+bool Lexer::isAtEnd() const {
+    return pos >= input.length();
+}
+
+std::vector<Token> Lexer::tokenize() {
+    std::vector<Token> tokens;
+
+    while (!isAtEnd()) {
+        char c = peek();
+        int currentCharCol = col;
+
+        switch (c) {
+            case '.':
+                tokens.emplace_back(TokenType::DOT, advance(), line, currentCharCol);
+                break;
+            case '*':
+                tokens.emplace_back(TokenType::STAR, advance(), line, currentCharCol);
+                break;
+            case '+':
+                tokens.emplace_back(TokenType::PLUS, advance(), line, currentCharCol);
+                break;
+            case '?':
+                tokens.emplace_back(TokenType::QUESTION, advance(), line, currentCharCol);
+                break;
+            case '|':
+                tokens.emplace_back(TokenType::PIPE, advance(), line, currentCharCol);
+                break;
+            case '(':
