@@ -58,3 +58,22 @@ std::vector<Token> Lexer::tokenize() {
                 tokens.emplace_back(TokenType::PIPE, advance(), line, currentCharCol);
                 break;
             case '(':
+                tokens.emplace_back(TokenType::LPAREN, advance(), line, currentCharCol);
+                break;
+            case ')':
+                tokens.emplace_back(TokenType::RPAREN, advance(), line, currentCharCol);
+                break;
+            default:
+                if (c >= 32 && c <= 126) {
+                    tokens.emplace_back(TokenType::LITERAL, advance(), line, currentCharCol);
+                } else {
+                    throw std::runtime_error("Invalid character at line " + std::to_string(line) + 
+                                             ", column " + std::to_string(currentCharCol) + ": code " + std::to_string(static_cast<unsigned char>(c)));
+                }
+                break;
+        }
+    }
+
+    tokens.emplace_back(TokenType::END_OF_INPUT, '\0', line, col);
+    return tokens;
+}

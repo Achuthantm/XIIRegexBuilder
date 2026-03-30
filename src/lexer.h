@@ -34,3 +34,15 @@ public:
     explicit Lexer(const std::string& input, int lineNum = 0);
     std::vector<Token> tokenize();
 
+private:
+    std::string input;
+    size_t pos;
+    int line;
+    int col;
+
+    char peek() const;
+    char advance();
+    bool isAtEnd() const;
+};
+
+#endif // LEXER_H
