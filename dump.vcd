@@ -1,0 +1,99 @@
+$date
+   Tue Mar 31 10:02:33 2026
+$end
+
+$version
+  2025.2
+  $dumpfile ("dump.vcd") 
+$end
+
+$timescale
+  1ps
+$end
+
+$scope module tb_top $end
+$var reg 1 ! clk $end
+$var reg 1 " en $end
+$var reg 1 # rst $end
+$var reg 1 $ start $end
+$var reg 1 % end_of_str $end
+$var reg 8 & char_in [7:0] $end
+$var wire 6 ' match_bus [5:0] $end
+$scope module uut $end
+$var wire 1 ( clk $end
+$var wire 1 ) en $end
+$var wire 1 * rst $end
+$var wire 1 + start $end
+$var wire 1 , end_of_str $end
+$var wire 8 - char_in [7:0] $end
+$var wire 6 ' match_bus [5:0] $end
+$scope module inst_0 $end
+$var wire 1 ( clk $end
+$var wire 1 ) en $end
+$var wire 1 * rst $end
+$var wire 1 + start $end
+$var wire 1 , end_of_str $end
+$var wire 8 - char_in [7:0] $end
+$var reg 1 . match $end
+$var reg 3 / state_reg [2:0] $end
+$var wire 3 0 next_state [2:0] $end
+$upscope $end
+$scope module inst_1 $end
+$var wire 1 ( clk $end
+$var wire 1 ) en $end
+$var wire 1 * rst $end
+$var wire 1 + start $end
+$var wire 1 , end_of_str $end
+$var wire 8 - char_in [7:0] $end
+$var reg 1 1 match $end
+$var reg 4 2 state_reg [3:0] $end
+$var wire 4 3 next_state [3:0] $end
+$upscope $end
+$scope module inst_2 $end
+$var wire 1 ( clk $end
+$var wire 1 ) en $end
+$var wire 1 * rst $end
+$var wire 1 + start $end
+$var wire 1 , end_of_str $end
+$var wire 8 - char_in [7:0] $end
+$var reg 1 4 match $end
+$var reg 4 5 state_reg [3:0] $end
+$var wire 4 6 next_state [3:0] $end
+$upscope $end
+$scope module inst_3 $end
+$var wire 1 ( clk $end
+$var wire 1 ) en $end
+$var wire 1 * rst $end
+$var wire 1 + start $end
+$var wire 1 , end_of_str $end
+$var wire 8 - char_in [7:0] $end
+$var reg 1 7 match $end
+$var reg 4 8 state_reg [3:0] $end
+$var wire 4 9 next_state [3:0] $end
+$upscope $end
+$scope module inst_4 $end
+$var wire 1 ( clk $end
+$var wire 1 ) en $end
+$var wire 1 * rst $end
+$var wire 1 + start $end
+$var wire 1 , end_of_str $end
+$var wire 8 - char_in [7:0] $end
+$var reg 1 : match $end
+$var reg 4 ; state_reg [3:0] $end
+$var wire 4 < next_state [3:0] $end
+$upscope $end
+$scope module inst_5 $end
+$var wire 1 ( clk $end
+$var wire 1 ) en $end
+$var wire 1 * rst $end
+$var wire 1 + start $end
+$var wire 1 , end_of_str $end
+$var wire 8 - char_in [7:0] $end
+$var reg 1 = match $end
+$var reg 6 > state_reg [5:0] $end
+$var wire 6 ? next_state [5:0] $end
+$upscope $end
+$upscope $end
+$upscope $end
+$enddefinitions $end
+
