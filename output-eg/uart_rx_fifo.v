@@ -34,3 +34,14 @@ module uart_rx_fifo #(
                 mem[wr_ptr] <= wr_data;
                 wr_ptr      <= wr_ptr + 1;
                 rd_ptr      <= rd_ptr + 1;
+            end else if (wr_en && !full) begin
+                mem[wr_ptr] <= wr_data;
+                wr_ptr      <= wr_ptr + 1;
+                count       <= count + 1;
+            end else if (rd_en && !empty) begin
+                rd_ptr <= rd_ptr + 1;
+                count  <= count - 1;
+            end
+        end
+    end
+endmodule
