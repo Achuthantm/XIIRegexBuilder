@@ -211,3 +211,66 @@ module tb_top;
         end_of_str = 0; #10;
 
         // Test case 14: "(a|b)"
+        start = 1; #10 start = 0;
+        char_in = 8'h28; #10;
+        char_in = 8'h61; #10;
+        char_in = 8'h7c; #10;
+        char_in = 8'h62; #10;
+        char_in = 8'h29; #10;
+        end_of_str = 1; #10;
+        // Match output is valid on the cycle immediately following end_of_str assertion
+        if (match_bus === 6'b000000) begin
+            $display("PASS: Test case 14 ('(a|b)') matches expected mask 000000");
+        end else begin
+            $display("FAIL: Test case 14 ('(a|b)') expected 000000, got %b", match_bus);
+        end
+        end_of_str = 0; #10;
+
+        // Test case 15: "abc"
+        start = 1; #10 start = 0;
+        char_in = 8'h61; #10;
+        char_in = 8'h62; #10;
+        char_in = 8'h63; #10;
+        end_of_str = 1; #10;
+        // Match output is valid on the cycle immediately following end_of_str assertion
+        if (match_bus === 6'b010110) begin
+            $display("PASS: Test case 15 ('abc') matches expected mask 010110");
+        end else begin
+            $display("FAIL: Test case 15 ('abc') expected 010110, got %b", match_bus);
+        end
+        end_of_str = 0; #10;
+
+        // Test case 16: "abcd"
+        start = 1; #10 start = 0;
+        char_in = 8'h61; #10;
+        char_in = 8'h62; #10;
+        char_in = 8'h63; #10;
+        char_in = 8'h64; #10;
+        end_of_str = 1; #10;
+        // Match output is valid on the cycle immediately following end_of_str assertion
+        if (match_bus === 6'b100000) begin
+            $display("PASS: Test case 16 ('abcd') matches expected mask 100000");
+        end else begin
+            $display("FAIL: Test case 16 ('abcd') expected 100000, got %b", match_bus);
+        end
+        end_of_str = 0; #10;
+
+        // Test case 17: "abce"
+        start = 1; #10 start = 0;
+        char_in = 8'h61; #10;
+        char_in = 8'h62; #10;
+        char_in = 8'h63; #10;
+        char_in = 8'h65; #10;
+        end_of_str = 1; #10;
+        // Match output is valid on the cycle immediately following end_of_str assertion
+        if (match_bus === 6'b100000) begin
+            $display("PASS: Test case 17 ('abce') matches expected mask 100000");
+        end else begin
+            $display("FAIL: Test case 17 ('abce') expected 100000, got %b", match_bus);
+        end
+        end_of_str = 0; #10;
+
+        $display("All tests completed.");
+        #100; $finish;
+    end
+endmodule
