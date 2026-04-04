@@ -15,3 +15,26 @@ module uart_rx #(
     reg [2:0] bit_idx = 0;
 
     always @(posedge clk) begin
+        case (state)
+            IDLE: begin
+                rx_ready <= 1'b0;
+                clk_count <= 0;
+                bit_idx <= 0;
+                if (rx == 1'b0) state <= START_BIT;
+            end
+            START_BIT: begin
+                if (clk_count == (CLKS_PER_BIT-1)/2) begin
+                    if (rx == 1'b0) begin
+                        clk_count <= 0;
+                        state <= DATA_BITS;
+                    end else state <= IDLE;
+                end else clk_count <= clk_count + 1;
+            end
+            DATA_BITS: begin
+                if (clk_count < CLKS_PER_BIT-1) begin
+                    clk_count <= clk_count + 1;
+                end else begin
+                    clk_count <= 0;
+                    rx_data[bit_idx] <= rx;
+                    if (bit_idx < 7) bit_idx <= bit_idx + 1;
+                    else state <= STOP_BIT;

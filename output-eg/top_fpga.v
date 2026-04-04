@@ -47,3 +47,69 @@ module top_fpga #(
         .rst    (rst_btn),
         .wr_data(rx_data),
         .wr_en  (rx_ready && !fifo_full),
+        .full   (fifo_full),
+        .rd_data(fifo_rd_data),
+        .rd_en  (fifo_rd_en),
+        .empty  (fifo_empty)
+    );
+
+    // NFA Engine
+    reg                  nfa_start      = 1'b1;
+    reg                  nfa_end_of_str = 1'b0;
+    reg  [7:0]           nfa_char_in    = 8'h00;
+    reg                  nfa_en         = 1'b0;
+    wire [5:0] match_bus;
+
+    top regex_engine (
+        .clk        (clk),
+        .en         (nfa_en),
+        .rst        (rst_btn),
+        .start      (nfa_start),
+        .end_of_str (nfa_end_of_str),
+        .char_in    (nfa_char_in),
+        .match_bus  (match_bus)
+    );
+
+    // Hardware Counters
+    reg [31:0] byte_count = 32'd0;
+    // One 16-bit hit counter per regex
+    reg [15:0] match_count [0:15];
+    integer ci;
+    initial begin
+        for (ci = 0; ci < 16; ci = ci + 1)
+            match_count[ci] = 16'd0;
+    end
+
+    // UART TX & Drain Sub-FSM
+    localparam TX_BUF_LEN = 128;
+    reg [7:0] tx_buf [0:TX_BUF_LEN-1];
+    reg [6:0] tx_len  = 7'd0;
+    reg [6:0] tx_ptr  = 7'd0;
+    reg       tx_send = 1'b0;  // pulse: start draining tx_buf
+
+    wire      tx_busy;
+    reg       tx_start_r = 1'b0;
+    reg [7:0] tx_data_r  = 8'd0;
+
+    uart_tx #(.CLKS_PER_BIT(CLKS_PER_BIT)) uart_tx_inst (
+        .clk     (clk),
+        .rst     (rst_btn),
+        .tx_data (tx_data_r),
+        .tx_start(tx_start_r),
+        .tx_busy (tx_busy),
+        .tx      (uart_tx_pin)
+    );
+
+    // hex nibble → ASCII character
+    function [7:0] hex_char;
+        input [3:0] nibble;
+        begin
+            hex_char = (nibble < 4'd10) ? (8'd48 + nibble) : (8'd55 + nibble);
+        end
+    endfunction
+
+    localparam TX_IDLE = 2'd0, TX_LOAD = 2'd1, TX_WAIT = 2'd2, TX_NEXT = 2'd3;
+    reg [1:0] tx_state = TX_IDLE;
+
+    always @(posedge clk) begin
+        tx_start_r <= 1'b0;
