@@ -448,7 +448,47 @@ MATCH=<N bits, MSB first> BYTES=<8 hex> HITS=<4 hex per regex, comma-sep>\r\n
 
 ---
 
-### 13.6 Timing Budget
+## 14. Stage 6 — Processor-based Dynamic Regex Engine
+
+### 14.1 Motivation
+
+While the static Verilog FSMs provide the highest possible performance and lowest latency, they require a full FPGA synthesis and implementation cycle to update the regex set. The Processor-based engine addresses this by providing a software-programmable NFA accelerator that can be updated in milliseconds via UART.
+
+### 14.2 Architecture Decisions
+
+| Decision        | Choice                                                        |
+| --------------- | ------------------------------------------------------------- |
+| Parallelism     | Bit-vector state representation (256-bit `active_candidates`) |
+| Instruction Set | Custom 5-instruction RISC (CHAR, SPLIT, JMP, MATCH, ANY)      |
+| Throughput      | 256 clock cycles per input character (fixed)                  |
+| Max Regexes     | 16 independent patterns                                       |
+| Max States      | 256 total NFA states (instruction memory limit)               |
+| Memory          | Dual-port inferred BRAM for instruction storage               |
+
+### 14.3 Instruction Encoding (32-bit)
+
+```text
+[31:24] char      : ASCII literal to match (0 if not a character match)
+[23:16] next1     : Primary target PC for jump/split
+[15:08] next2     : Secondary target PC for split (0 if not used)
+[07:04] mid       : Match ID (0-15) for reporting matches
+[03]    term      : Terminal bit (1 if this state triggers a match)
+[00]    any       : Wildcard bit (1 if this matches any character)
+```
+
+### 14.4 Execution Pipeline
+
+1. **IDLE**: Wait for `char_valid` or `start` or `end_of_str`.
+2. **START_INIT**: Activate PC 0 and transition to Epsilon Recurse.
+3. **CHAR_MATCH**: Scan all 256 instructions. If `active_candidates[pc]` is set and `char` matches `char_in`, set `next_set_buffer[next1/next2]`.
+4. **EPSILON_RECURSE**: Multi-pass scan (up to 64 passes). If `active_candidates[pc]` is an epsilon state (SPLIT/JMP), deactivate it and activate its targets. Continue until no more changes occur.
+5. **END_OF_STR**: Scan all active states. If any state has the `term` bit set, assert the corresponding bit in `match_bus[mid]`.
+
+### 14.5 Toolchain
+
+- **`compile_regex.py`**: A Glushkov-based compiler that generates a unified NFA for all input regexes and produces a `.rasm` assembly file.
+- **`asm.py`**: A simple assembler that converts `.rasm` into an FPGA-ready `.hex` file.
+- **`prog_fpga.py`**: A utility to stream the `.hex` file over UART to the processor's instruction memory at runtime.
 
 At 100 MHz, one complete string-processing cycle from `\n` receipt to TX-complete takes:
 

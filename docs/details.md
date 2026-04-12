@@ -148,8 +148,6 @@ A fully functional testbench (`tb_top.v`) is generated:
 
 This stage connects the Verilog regex engine to the physical FPGA I/O: a USB-UART serial link for bidirectional communication with a host PC. Three new hardware modules are added.
 
----
-
 ### 4.1 UART Transmitter (`uart_tx.v`)
 
 A standard 8-N-1 UART transmitter with a 4-state FSM:
@@ -221,35 +219,51 @@ This sub-FSM runs concurrently with the control FSM, which simply waits in `S_TX
 
 Both are cleared by asserting `rst_btn`. Values are transmitted as part of every response packet.
 
-#### Response Packet Format
-
-```
-MATCH=<N-bit binary> BYTES=<8 hex digits> HITS=<4 hex per regex, comma-separated>\r\n
-```
-
-The `build_response` Verilog task constructs this string in a 128-byte register array at synthesis time (combinational logic mapped to LUTs), then stores it in `tx_buf`. No block RAM is required for the TX buffer.
-
 ---
 
-### 4.4 Python TUI (`tui.py`)
+## Stage 5 — Processor-based Regex Engine
 
-A terminal user interface for interactive testing from any host PC.
+The processor-based engine (`processor/` directory) provides a dynamic alternative to the static Verilog FSMs. Instead of synthesising a new circuit for each regex, we use a custom Soft-Processor that executes "Regex Instructions" loaded into memory.
 
-**Dependencies:** `pip install pyserial rich`
+### 5.1 Regex CPU Architecture
 
-**Usage:**
+The Regex CPU is a specialized processor optimized for NFA simulation:
 
-```bash
-python tui.py --port /dev/ttyUSB0 --regexes inputs/regexes.txt
-```
+- **Instruction Set:** Custom 32-bit instructions (CHAR, SPLIT, JMP, MATCH, ANY).
+- **Instruction Memory:** 256-word × 32-bit memory (BRAM/LUTRAM inferred).
+- **State Representation:** A 256-bit wide `active_candidates` register represents the set of currently active NFA states.
+- **Execution Model:**
+  - **Character Match Phase:** Iterates through all active states and checks for a character match.
+  - **Epsilon Expansion Phase:** Iterates through active states to follow SPLIT and JMP transitions until only character-matching or terminal states remain active.
+  - **Terminal Phase:** Checks if any active state is a MATCH state at the end of the input string.
 
-The port is auto-detected if omitted (first USB-Serial device found).
+### 5.2 Glushkov Assembler Toolchain
 
-**Features:**
+A Python-based compiler converts standard regular expressions into the processor's native machine code:
 
-- Live colour-coded match table: green `● MATCH` / dim red `○ —` per regex.
-- Running totals: total bytes processed and per-regex cumulative hit count.
-- Input history in the prompt.
-- Background reader thread handles FPGA responses without blocking the UI.
-- `?` query support: displays current counters without sending a test string.
-- Graceful exit on `q`, `quit`, or Ctrl-C.
+1. **`compile_regex.py`**:
+   - Parses regex into an AST.
+   - Computes Glushkov `first`, `last`, and `follow` sets.
+   - Generates a `SPLIT` chain to allow multiple regexes to run in parallel.
+   - Outputs an assembly file (`.rasm`).
+2. **`asm.py`**:
+   - Parses the `.rasm` file.
+   - Packs instruction fields into 32-bit binary words.
+   - Outputs a hex file (`imem.hex`) for FPGA memory initialization or runtime programming.
+
+### 5.3 Instruction Format
+
+| Field   | Bits    | Description                                      |
+| ------- | ------- | ------------------------------------------------ |
+| `char`  | [31:24] | ASCII character to match (or 0 for epsilon/any). |
+| `next1` | [23:16] | Primary target PC for jump/split.                |
+| `next2` | [15:8]  | Secondary target PC for split.                   |
+| `mid`   | [7:4]   | Match ID (Regex index 0–15).                     |
+| `term`  | [3]     | Terminal bit (1 if this is a MATCH state).       |
+| `any`   | [0]     | Wildcard bit (1 if this matches any character).  |
+
+### 5.4 Advantages of the Processor Approach
+
+- **Runtime Flexibility:** Regexes can be updated by simply writing to the instruction memory over UART.
+- **Resource Efficiency:** Supports up to 16 complex regexes with a fixed amount of FPGA logic, regardless of regex complexity (up to 256 instructions).
+- **Deterministic Latency:** Fixed scan time of 256 cycles per character ensures predictable performance.
