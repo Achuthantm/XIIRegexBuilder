@@ -18,6 +18,8 @@ Modern financial markets generate enormous volumes of structured text — orders
 
 **Trade Surveillance and Compliance.** Patterns like spoofing, layering, and wash trading are detectable as sequences in live order flow. Hardware matching enables real-time compliance checks on the live feed rather than retrospective analysis on stored logs.
 
+**Dynamic Strategy Adjustment.** Financial conditions shift in milliseconds. The **Soft-Processor engine** allows traders to update their regex filtering rules on-the-fly without needing to take the system offline for a slow hardware re-synthesis. This combination of hardware speed and software flexibility is a unique advantage of our dual-architecture approach.
+
 ---
 
 ## Why FPGA and Not Just Faster Software?
