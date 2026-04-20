@@ -8,7 +8,8 @@ module nfa_1 (
     input  wire       start,
     input  wire       end_of_str,
     input  wire [7:0] char_in,
-    output reg        match
+    output reg        match,
+    output wire       active
 );
 
     // One-hot state register
@@ -16,9 +17,9 @@ module nfa_1 (
     wire [3:0] next_state;
 
     assign next_state[0] = 1'b0;
-    assign next_state[1] = (state_reg[0] && (char_in == 8'd97));
-    assign next_state[2] = (state_reg[1] && (char_in == 8'd98)) | (state_reg[2] && (char_in == 8'd98));
-    assign next_state[3] = (state_reg[1] && (char_in == 8'd99)) | (state_reg[2] && (char_in == 8'd99));
+    assign next_state[1] = (state_reg[0] && (char_in == 8'd99));
+    assign next_state[2] = (state_reg[1] && (char_in >= 8'd32) && (char_in <= 8'd126));
+    assign next_state[3] = (state_reg[2] && (char_in == 8'd116));
 
     always @(posedge clk) begin
         if (rst || start) begin
@@ -41,5 +42,8 @@ module nfa_1 (
             end
         end
     end
+
+    // Active logic: high if any state other than state 0 is active
+    assign active = |state_reg[3:1];
 
 endmodule

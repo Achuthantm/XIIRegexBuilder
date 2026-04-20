@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
-// NFA for regex index 0
-module nfa_0 (
+// NFA for regex index 10
+module nfa_10 (
     input  wire       clk,
     input  wire       en,
     input  wire       rst,
@@ -13,13 +13,14 @@ module nfa_0 (
 );
 
     // One-hot state register
-    reg [3:0] state_reg;
-    wire [3:0] next_state;
+    reg [4:0] state_reg;
+    wire [4:0] next_state;
 
     assign next_state[0] = 1'b0;
-    assign next_state[1] = (state_reg[0] && (char_in == 8'd99));
-    assign next_state[2] = (state_reg[1] && (char_in == 8'd97));
-    assign next_state[3] = (state_reg[2] && (char_in == 8'd116));
+    assign next_state[1] = (state_reg[0] && (char_in == 8'd97));
+    assign next_state[2] = (state_reg[1] && (char_in == 8'd98)) | (state_reg[2] && (char_in == 8'd98)) | (state_reg[3] && (char_in == 8'd98));
+    assign next_state[3] = (state_reg[1] && (char_in == 8'd99)) | (state_reg[2] && (char_in == 8'd99)) | (state_reg[3] && (char_in == 8'd99));
+    assign next_state[4] = (state_reg[1] && (char_in == 8'd100)) | (state_reg[2] && (char_in == 8'd100)) | (state_reg[3] && (char_in == 8'd100));
 
     always @(posedge clk) begin
         if (rst || start) begin
@@ -36,7 +37,7 @@ module nfa_0 (
             match <= 1'b0;
         end else if (en) begin
             if (end_of_str) begin
-                match <= state_reg[3];
+                match <= state_reg[4];
             end else begin
                 match <= 1'b0;
             end
@@ -44,6 +45,6 @@ module nfa_0 (
     end
 
     // Active logic: high if any state other than state 0 is active
-    assign active = |state_reg[3:1];
+    assign active = |state_reg[4:1];
 
 endmodule

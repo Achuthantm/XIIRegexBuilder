@@ -19,7 +19,7 @@ The pipeline consists of four major stages: regex parsing, NFA construction, Ver
 | Supported operators           | Kleene star, plus, optional, union, dot, parentheses, literals      |
 | NFA construction algorithm    | Glushkov's construction                                             |
 | Architecture                  | One independent Verilog FSM module per NFA, all running in parallel |
-| ε-transition handling         | None — Glushkov's construction produces ε-free NFAs directly        |
+| ε-transition handling         | None - Glushkov's construction produces ε-free NFAs directly        |
 | State encoding                | One-hot (one flip-flop per NFA state)                               |
 | Character stream interface    | Synchronous; one 8-bit ASCII character per clock cycle              |
 | Match semantics               | Full match only (the entire input string must satisfy the regex)    |
@@ -43,13 +43,13 @@ The input is a plain text file, referred to throughout as `regexes.txt`. It obey
 
 The following constructs must be supported:
 
-- **Literal characters** — any printable ASCII character (codes 32–126) that is not a metacharacter is matched literally.
-- **Dot** (`.`) — matches any single character.
-- **Kleene star** (`*`) — matches zero or more repetitions of the preceding atom.
-- **Plus** (`+`) — matches one or more repetitions of the preceding atom.
-- **Optional** (`?`) — matches zero or one occurrence of the preceding atom.
-- **Union** (`|`) — matches either the expression on the left or the expression on the right. Union may appear both within a single regex (e.g. between subexpressions) and effectively between entire regex lines via the separate-line structure.
-- **Parentheses** (`(` and `)`) — group subexpressions and control the scope of operators.
+- **Literal characters** - any printable ASCII character (codes 32–126) that is not a metacharacter is matched literally.
+- **Dot** (`.`) - matches any single character.
+- **Kleene star** (`*`) - matches zero or more repetitions of the preceding atom.
+- **Plus** (`+`) - matches one or more repetitions of the preceding atom.
+- **Optional** (`?`) - matches zero or one occurrence of the preceding atom.
+- **Union** (`|`) - matches either the expression on the left or the expression on the right. Union may appear both within a single regex (Eg. between subexpressions) and effectively between entire regex lines via the separate-line structure.
+- **Parentheses** (`(` and `)`) - group subexpressions and control the scope of operators.
 
 The operator precedence from highest to lowest is: `*`, `+`, `?` (postfix quantifiers) → concatenation (implicit) → `|` (union).
 
@@ -61,7 +61,7 @@ A second plain text input file provides strings to test against the regex set. E
 
 ---
 
-## 4. Stage 1 — C++ Regex Parser
+## 4. Stage 1 - C++ Regex Parser
 
 ### 4.1 Lexer
 
@@ -83,27 +83,27 @@ Each AST node is one of the following types: Literal, Dot, Concatenation, Union,
 The parser must detect and report, with a meaningful message and line number:
 
 - Unmatched parentheses.
-- A quantifier applied to nothing (e.g. a leading `*`).
-- An empty alternation branch (e.g. `a|`).
+- A quantifier applied to nothing (Eg. a leading `*`).
+- An empty alternation branch (Eg. `a|`).
 - Any character outside the printable ASCII range.
 
 ---
 
-## 5. Stage 2 — C++ NFA Construction (Glushkov's Construction)
+## 5. Stage 2 - C++ NFA Construction (Glushkov's Construction)
 
 ### 5.1 Overview
 
 Glushkov's construction is applied to each AST to produce an ε-free NFA. Unlike Thompson's construction, Glushkov's algorithm never introduces ε-transitions. Instead, it works by analysing the positions of symbol occurrences within the regex and computing which positions can follow which others during a match. The resulting NFA has exactly one state per symbol occurrence in the regex, plus one distinguished initial state, and all transitions are labelled with concrete characters.
 
-This ε-free property means the Verilog emitter requires no combinational ε-closure layer — the next-state logic is entirely registered, which simplifies synthesis and removes combinational depth as a timing concern.
+This ε-free property means the Verilog emitter requires no combinational ε-closure layer - the next-state logic is entirely registered, which simplifies synthesis and removes combinational depth as a timing concern.
 
-### 5.2 Step 1 — Linearisation
+### 5.2 Step 1 - Linearisation
 
 Each symbol occurrence in the regex (every literal character and every dot) is assigned a unique integer position label, numbered from 1 upwards, in left-to-right order of appearance. Position 0 is reserved for the special initial state and does not correspond to any symbol. Two occurrences of the same character are treated as distinct positions.
 
 For example, the regex `ab*a` is linearised as `a₁ b₂* a₃`, yielding positions 1, 2, and 3.
 
-### 5.3 Step 2 — Computing Nullable
+### 5.3 Step 2 - Computing Nullable
 
 For each node in the AST, a Boolean property `nullable` is computed, indicating whether the sub-expression rooted at that node can match the empty string. The rules are:
 
@@ -113,7 +113,7 @@ For each node in the AST, a Boolean property `nullable` is computed, indicating 
 - A Union node is nullable if either branch is nullable.
 - A Concatenation node is nullable if and only if both sub-expressions are nullable.
 
-### 5.4 Step 3 — Computing Firstpos
+### 5.4 Step 3 - Computing Firstpos
 
 For each AST node, `firstpos` is the set of positions that can match the first character of any string accepted by that sub-expression. The rules are:
 
@@ -122,7 +122,7 @@ For each AST node, `firstpos` is the set of positions that can match the first c
 - A Union node has `firstpos` equal to the union of the `firstpos` sets of both branches.
 - A Concatenation node of left and right sub-expressions has `firstpos` equal to the `firstpos` of the left sub-expression, plus the `firstpos` of the right sub-expression if the left sub-expression is nullable.
 
-### 5.5 Step 4 — Computing Lastpos
+### 5.5 Step 4 - Computing Lastpos
 
 For each AST node, `lastpos` is the set of positions that can match the last character of any string accepted by that sub-expression. The rules are:
 
@@ -131,7 +131,7 @@ For each AST node, `lastpos` is the set of positions that can match the last cha
 - A Union node has `lastpos` equal to the union of the `lastpos` sets of both branches.
 - A Concatenation node of left and right sub-expressions has `lastpos` equal to the `lastpos` of the right sub-expression, plus the `lastpos` of the left sub-expression if the right sub-expression is nullable.
 
-### 5.6 Step 5 — Computing Followpos
+### 5.6 Step 5 - Computing Followpos
 
 For each position p, `followpos(p)` is the set of positions that can immediately follow position p in any match. This set is built by traversing the AST and applying two rules:
 
@@ -140,7 +140,7 @@ For each position p, `followpos(p)` is the set of positions that can immediately
 
 All other node types (Union, Optional, Literal, Dot) do not contribute to `followpos` directly.
 
-### 5.7 Step 6 — Building the NFA
+### 5.7 Step 6 - Building the NFA
 
 With the position functions computed, the NFA is assembled as follows:
 
@@ -162,7 +162,7 @@ All NFA states across all N NFAs share a single global numbering space. This avo
 
 ---
 
-## 6. Stage 3 — C++ Verilog Emitter
+## 6. Stage 3 - C++ Verilog Emitter
 
 ### 6.1 Overview
 
@@ -174,12 +174,12 @@ Because Glushkov's construction produces ε-free NFAs, the emitter requires no c
 
 Each NFA produces one Verilog module. The module's ports are:
 
-- `clk` — clock input.
-- `rst` — synchronous active-high reset.
-- `start` — a one-cycle pulse that initialises the FSM to its start state, beginning a new match attempt.
-- `end_of_str` — a one-cycle pulse asserted one cycle after the final character of the input string.
-- `char_in` — an 8-bit input carrying the current ASCII character.
-- `match` — a registered output that is asserted for one cycle when the FSM is in an accept state at the moment `end_of_str` is asserted.
+- `clk` - clock input.
+- `rst` - synchronous active-high reset.
+- `start` - a one-cycle pulse that initialises the FSM to its start state, beginning a new match attempt.
+- `end_of_str` - a one-cycle pulse asserted one cycle after the final character of the input string.
+- `char_in` - an 8-bit input carrying the current ASCII character.
+- `match` - a registered output that is asserted for one cycle when the FSM is in an accept state at the moment `end_of_str` is asserted.
 
 ### 6.3 One-Hot State Encoding
 
@@ -210,7 +210,7 @@ A single top-level Verilog module instantiates all N NFA modules. All instances 
 
 ---
 
-## 7. Stage 4 — Simulation Testbench
+## 7. Stage 4 - Simulation Testbench
 
 ### 7.1 Structure
 
@@ -235,7 +235,7 @@ The testbench dumps all signals to a VCD file for inspection in Vivado's wavefor
 
 ---
 
-## 8. Stage 5 — Golden Reference
+## 8. Stage 5 - Golden Reference
 
 A separate C++ program reads `regexes.txt` and `test_strings.txt`, runs each test string against each regex using the C++ standard library's full-match mode, and writes `expected_matches.txt`. Each line of the output corresponds to one test string and contains a bitmask (or equivalent structured text) indicating which regexes matched.
 
@@ -312,7 +312,7 @@ After synthesis and implementation, the following are checked:
 
 ### 11.1 One-Hot State Register Size
 
-One-hot encoding allocates one flip-flop per NFA state. Glushkov's construction produces exactly one state per symbol occurrence plus one initial state — generally fewer states than Thompson's construction for the same regex. With fewer than 20 regexes and relatively simple patterns this is not expected to be problematic, but unusually long or repetitive regexes should be monitored for excessive flip-flop usage.
+One-hot encoding allocates one flip-flop per NFA state. Glushkov's construction produces exactly one state per symbol occurrence plus one initial state - generally fewer states than Thompson's construction for the same regex. With fewer than 20 regexes and relatively simple patterns this is not expected to be problematic, but unusually long or repetitive regexes should be monitored for excessive flip-flop usage.
 
 ### 11.2 Dot Operator Fan-Out
 
@@ -344,7 +344,7 @@ The following are explicitly not part of this project:
 
 ---
 
-## 13. Stage 5 — FPGA I/O Integration
+## 13. Stage 5 - FPGA I/O Integration
 
 ### 13.1 UART Transmitter (`uart_tx.v`)
 
@@ -395,7 +395,7 @@ The main FSM has 12 states (previously 6). The key additions are:
 - **`S_EOL_LATCH`**: After capturing `match_bus`, update all `match_count[k]` registers and snapshot `byte_count` for inclusion in the TX packet.
 - **`S_TX_ARM`**: Invoke the `build_response` task to format the ASCII response into `tx_buf[0..tx_len-1]` and pulse `tx_send`.
 - **`S_TX_WAIT`**: Spin until the TX drain sub-FSM completes (`tx_state == TX_IDLE`).
-- **`S_QUERY_TX`**: Service a `?` byte from the host — build and send a counter snapshot immediately without modifying NFA state.
+- **`S_QUERY_TX`**: Service a `?` byte from the host - build and send a counter snapshot immediately without modifying NFA state.
 
 #### 13.3.3 TX drain sub-FSM
 
@@ -403,7 +403,7 @@ A 4-state FSM (`TX_IDLE → TX_LOAD → TX_WAIT → TX_NEXT`) drains `tx_buf` by
 
 #### 13.3.4 `build_response` task
 
-A synthesisable Verilog `task` that takes the match bitmask and byte counter as inputs and writes a fixed-format ASCII response string into the `tx_buf` register array. The task executes combinationally within the `always` block and completes in a single clock cycle (no loops remain in the synthesised netlist — they are unrolled at elaboration time).
+A synthesisable Verilog `task` that takes the match bitmask and byte counter as inputs and writes a fixed-format ASCII response string into the `tx_buf` register array. The task executes combinationally within the `always` block and completes in a single clock cycle (no loops remain in the synthesised netlist - they are unrolled at elaboration time).
 
 #### 13.3.5 Hardware counters
 
@@ -448,7 +448,7 @@ MATCH=<N bits, MSB first> BYTES=<8 hex> HITS=<4 hex per regex, comma-sep>\r\n
 
 ---
 
-## 14. Stage 6 — Processor-based Dynamic Regex Engine
+## 14. Stage 6 - Processor-based Dynamic Regex Engine
 
 ### 14.1 Motivation
 
