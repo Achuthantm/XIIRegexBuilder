@@ -1,28 +1,28 @@
 `timescale 1ns / 1ps
 
 // =============================================================================
-// top_fpga.v — FPGA Top-Level
-// Regex count: 6
+// top_fpga.v -  FPGA Top-Level
+// Regex count: 16
 //
 // Architecture:
 //   uart_rx → uart_rx_fifo → Control FSM → top (NFA engine)
 //                                         → uart_tx → host PC
 //
 // UART response packet (one line per newline received from host):
-//   "MATCH=<6-bit binary> BYTES=<8 hex> HITS=<4 hex per regex,comma-sep>\r\n"
+//   "MATCH=<16-bit binary> BYTES=<8 hex> HITS=<4 hex per regex,comma-sep>\r\n"
 //
 // Send '?' (0x3F) to query counters without feeding the NFA.
 // =============================================================================
 
 module top_fpga #(
-    parameter NUM_REGEX    = 6,
+    parameter NUM_REGEX    = 16,
     parameter CLKS_PER_BIT = 868   // 100 MHz / 115200 baud
 )(
     input  wire clk,
     input  wire rst_btn,
     input  wire uart_rx_pin,
     output wire uart_tx_pin,
-    output reg  [5:0] match_leds
+    output reg  [15:0] match_leds
 );
 
     // UART RX
@@ -58,7 +58,7 @@ module top_fpga #(
     reg                  nfa_end_of_str = 1'b0;
     reg  [7:0]           nfa_char_in    = 8'h00;
     reg                  nfa_en         = 1'b0;
-    wire [5:0] match_bus;
+    wire [15:0] match_bus;
 
     top regex_engine (
         .clk        (clk),
@@ -144,7 +144,7 @@ module top_fpga #(
     integer    ri;
 
     task build_response;
-        input [5:0] mbits;
+        input [15:0] mbits;
         input [31:0]          bcount;
         integer k;
         begin : build_task
@@ -158,6 +158,16 @@ module top_fpga #(
             tx_buf[p]=8'h48; p=p+1;  // H
             tx_buf[p]=8'h3D; p=p+1;  // =
             // match bits, MSB first
+            tx_buf[p] = (mbits[15]) ? 8'h31 : 8'h30; p=p+1;
+            tx_buf[p] = (mbits[14]) ? 8'h31 : 8'h30; p=p+1;
+            tx_buf[p] = (mbits[13]) ? 8'h31 : 8'h30; p=p+1;
+            tx_buf[p] = (mbits[12]) ? 8'h31 : 8'h30; p=p+1;
+            tx_buf[p] = (mbits[11]) ? 8'h31 : 8'h30; p=p+1;
+            tx_buf[p] = (mbits[10]) ? 8'h31 : 8'h30; p=p+1;
+            tx_buf[p] = (mbits[9]) ? 8'h31 : 8'h30; p=p+1;
+            tx_buf[p] = (mbits[8]) ? 8'h31 : 8'h30; p=p+1;
+            tx_buf[p] = (mbits[7]) ? 8'h31 : 8'h30; p=p+1;
+            tx_buf[p] = (mbits[6]) ? 8'h31 : 8'h30; p=p+1;
             tx_buf[p] = (mbits[5]) ? 8'h31 : 8'h30; p=p+1;
             tx_buf[p] = (mbits[4]) ? 8'h31 : 8'h30; p=p+1;
             tx_buf[p] = (mbits[3]) ? 8'h31 : 8'h30; p=p+1;
@@ -222,6 +232,66 @@ module top_fpga #(
             tx_buf[p]=hex_char(tmp16[11: 8]); p=p+1;
             tx_buf[p]=hex_char(tmp16[ 7: 4]); p=p+1;
             tx_buf[p]=hex_char(tmp16[ 3: 0]); p=p+1;
+            tx_buf[p]=8'h2C; p=p+1;  // ','
+            tmp16 = match_count[6];
+            tx_buf[p]=hex_char(tmp16[15:12]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[11: 8]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[ 7: 4]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[ 3: 0]); p=p+1;
+            tx_buf[p]=8'h2C; p=p+1;  // ','
+            tmp16 = match_count[7];
+            tx_buf[p]=hex_char(tmp16[15:12]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[11: 8]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[ 7: 4]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[ 3: 0]); p=p+1;
+            tx_buf[p]=8'h2C; p=p+1;  // ','
+            tmp16 = match_count[8];
+            tx_buf[p]=hex_char(tmp16[15:12]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[11: 8]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[ 7: 4]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[ 3: 0]); p=p+1;
+            tx_buf[p]=8'h2C; p=p+1;  // ','
+            tmp16 = match_count[9];
+            tx_buf[p]=hex_char(tmp16[15:12]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[11: 8]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[ 7: 4]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[ 3: 0]); p=p+1;
+            tx_buf[p]=8'h2C; p=p+1;  // ','
+            tmp16 = match_count[10];
+            tx_buf[p]=hex_char(tmp16[15:12]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[11: 8]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[ 7: 4]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[ 3: 0]); p=p+1;
+            tx_buf[p]=8'h2C; p=p+1;  // ','
+            tmp16 = match_count[11];
+            tx_buf[p]=hex_char(tmp16[15:12]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[11: 8]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[ 7: 4]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[ 3: 0]); p=p+1;
+            tx_buf[p]=8'h2C; p=p+1;  // ','
+            tmp16 = match_count[12];
+            tx_buf[p]=hex_char(tmp16[15:12]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[11: 8]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[ 7: 4]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[ 3: 0]); p=p+1;
+            tx_buf[p]=8'h2C; p=p+1;  // ','
+            tmp16 = match_count[13];
+            tx_buf[p]=hex_char(tmp16[15:12]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[11: 8]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[ 7: 4]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[ 3: 0]); p=p+1;
+            tx_buf[p]=8'h2C; p=p+1;  // ','
+            tmp16 = match_count[14];
+            tx_buf[p]=hex_char(tmp16[15:12]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[11: 8]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[ 7: 4]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[ 3: 0]); p=p+1;
+            tx_buf[p]=8'h2C; p=p+1;  // ','
+            tmp16 = match_count[15];
+            tx_buf[p]=hex_char(tmp16[15:12]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[11: 8]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[ 7: 4]); p=p+1;
+            tx_buf[p]=hex_char(tmp16[ 3: 0]); p=p+1;
             tx_buf[p]=8'h0D; p=p+1;  // CR
             tx_buf[p]=8'h0A; p=p+1;  // LF
             tx_len = p[6:0];
@@ -244,7 +314,7 @@ module top_fpga #(
 
     reg [3:0] state = S_RESET_NFA;
 
-    reg [5:0] snap_match = 6'b0;
+    reg [15:0] snap_match = 16'b0;
     reg [31:0]          snap_bytes = 32'd0;
     integer k;
 
@@ -256,7 +326,7 @@ module top_fpga #(
 
         if (rst_btn) begin
             state      <= S_RESET_NFA;
-            match_leds <= 6'b0;
+            match_leds <= 16'b0;
             byte_count <= 32'd0;
             for (k = 0; k < 16; k = k + 1)
                 match_count[k] <= 16'd0;
@@ -308,7 +378,7 @@ module top_fpga #(
                     snap_match <= match_bus;
                     snap_bytes <= byte_count;
                     match_leds <= match_bus;
-                    for (k = 0; k < 6; k = k + 1)
+                    for (k = 0; k < 16; k = k + 1)
                         if (match_bus[k]) match_count[k] <= match_count[k] + 16'd1;
                     state <= S_TX_ARM;
                 end
@@ -329,7 +399,7 @@ module top_fpga #(
                 end
 
                 S_QUERY_TX: begin
-                    build_response(6'b0, byte_count);
+                    build_response(16'b0, byte_count);
                     tx_send <= 1'b1;
                     state   <= S_TX_WAIT;
                 end
