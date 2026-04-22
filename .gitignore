@@ -39,18 +39,24 @@
 
 # Debug information
 *.dwo
-output/
 
 # Final Executable
 build/
+output/
 
 # Vivado Files
 *.bit
 *.jou
 *.log
+*.pb
+*.wdb
+*.str
+.Xil/
+xsim.dir/
 clockInfo.txt
 dfx_runtime.txt
-.Xil/
+usage_statistics_webtalk.*
 
 # Python TUI
 .venv
+__pycache__/

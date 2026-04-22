@@ -122,13 +122,21 @@ proc_synth: proc_asm | $(PROC_BUILD_DIR)
 proc_program:
 	$(MAKE) program BITSTREAM=$(PROC_BUILD_DIR)/top_fpga.bit
 
+# PII Guard Targets
+pii_build: all | $(OUTPUT_DIR)
+	$(TARGET) --pii pii/pii_regexes.txt $(INPUT_DIR)/test_strings.txt $(OUTPUT_DIR)
+
+pii_synth: pii_build
+	@echo "Launching Vivado Synthesis Flow for PII Guard..."
+	$(VIVADO_PATH) -mode batch -source $(call FIX_PATH,scripts/synth_pii.tcl)
+
 clean:
 	-$(RM) $(call FIX_PATH,src/*.o)
 	-$(RMDIR) $(call FIX_PATH,$(BUILD_DIR))
 	-$(RMDIR) $(call FIX_PATH,$(OUTPUT_DIR))
 	-$(RMDIR) $(call FIX_PATH,processor/build)
 	-$(RM) *.bit *.log *.jou *.pb *.wdb *.str usage_statistics_webtalk.*
-	-$(RM) clockInfo.txt dfx_runtime.txt
+	-$(RM) clockInfo.txt dfx_runtime.txt *.hex *.exe
 	-$(RMDIR) xsim.dir .Xil
 
-.PHONY: all run test golden synth program proc_asm proc_sim proc_update_regex proc_synth proc_program clean
+.PHONY: all run test golden synth program proc_asm proc_sim proc_update_regex proc_synth proc_program pii_build pii_synth clean
