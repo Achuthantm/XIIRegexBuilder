@@ -14,6 +14,8 @@ enum class TokenType {
     PIPE,
     LPAREN,
     RPAREN,
+    LBRACKET,
+    RBRACKET,
     END_OF_INPUT
 };
 

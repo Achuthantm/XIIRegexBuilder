@@ -18,14 +18,21 @@ std::string trim(const std::string& str) {
 }
 
 int main(int argc, char* argv[]) {
-    if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <regex_file> [test_strings_file] [output_dir]" << std::endl;
+    bool isPII = false;
+    int argOffset = 1;
+    if (argc > 1 && std::string(argv[1]) == "--pii") {
+        isPII = true;
+        argOffset = 2;
+    }
+
+    if (argc < argOffset + 1) {
+        std::cerr << "Usage: " << argv[0] << " [--pii] <regex_file> [test_strings_file] [output_dir]" << std::endl;
         return 1;
     }
 
-    std::string regexFilename = argv[1];
-    std::string testFilename = (argc > 2) ? argv[2] : "";
-    std::string outputDir = (argc > 3) ? argv[3] : "output";
+    std::string regexFilename = argv[argOffset];
+    std::string testFilename = (argc > argOffset + 1) ? argv[argOffset + 1] : "";
+    std::string outputDir = (argc > argOffset + 2) ? argv[argOffset + 2] : "output";
 
     if (testFilename == "-" || testFilename == "none") {
         testFilename = "";
@@ -110,7 +117,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Generated " << nfas.size() << " NFAs. Emitting Verilog..." << std::endl;
 
     try {
-        Emitter::emit(nfas, outputDir, testStrings, expectedMatches);
+        Emitter::emit(nfas, outputDir, testStrings, expectedMatches, isPII);
         std::cout << "Pipeline complete. Verilog files emitted to '" << outputDir << "/'" << std::endl;
     } catch (const std::exception& e) {
         std::cerr << "Error during Verilog emission: " << e.what() << std::endl;
