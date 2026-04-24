@@ -13,7 +13,8 @@ enum class ASTNodeType {
     UNION,
     STAR,
     PLUS,
-    OPTIONAL
+    OPTIONAL,
+    CHAR_CLASS
 };
 
 class ASTNode {
@@ -21,7 +22,6 @@ public:
     ASTNodeType type;
     virtual ~ASTNode() = default;
 
-    // The following fields are populated by the NFA builder (Stage 2), NOT the parser.
     bool nullable = false;
     std::set<int> firstpos;
     std::set<int> lastpos;
@@ -34,13 +34,20 @@ std::string nodeTypeToString(ASTNodeType type);
 class LiteralNode : public ASTNode {
 public:
     char value;
-    int position; // Used for Glushkov's construction
+    int position;
     explicit LiteralNode(char v) : ASTNode(ASTNodeType::LITERAL), value(v), position(-1) {}
+};
+
+class CharClassNode : public ASTNode {
+public:
+    std::set<unsigned char> characters;
+    int position;
+    CharClassNode() : ASTNode(ASTNodeType::CHAR_CLASS), position(-1) {}
 };
 
 class DotNode : public ASTNode {
 public:
-    int position; // Used for Glushkov's construction
+    int position;
     DotNode() : ASTNode(ASTNodeType::DOT), position(-1) {}
 };
 
@@ -90,10 +97,10 @@ private:
     const std::vector<Token>& tokens;
     size_t pos;
 
-    std::unique_ptr<ASTNode> parseExpression();   // Union
-    std::unique_ptr<ASTNode> parseTerm();         // Concatenation
-    std::unique_ptr<ASTNode> parseFactor();       // Quantifiers
-    std::unique_ptr<ASTNode> parseAtom();         // Literals, Dot, Parens
+    std::unique_ptr<ASTNode> parseExpression();
+    std::unique_ptr<ASTNode> parseTerm();
+    std::unique_ptr<ASTNode> parseFactor();
+    std::unique_ptr<ASTNode> parseAtom();
 
     const Token& peek() const;
     const Token& advance();

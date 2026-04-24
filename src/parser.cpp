@@ -10,6 +10,7 @@ std::string nodeTypeToString(ASTNodeType type) {
         case ASTNodeType::STAR:          return "STAR";
         case ASTNodeType::PLUS:          return "PLUS";
         case ASTNodeType::OPTIONAL:      return "OPTIONAL";
+        case ASTNodeType::CHAR_CLASS:    return "CHAR_CLASS";
         default:                         return "UNKNOWN";
     }
 }
@@ -26,19 +27,12 @@ std::unique_ptr<ASTNode> Parser::parse() {
 
 // Expression -> Term ( '|' Term )*
 std::unique_ptr<ASTNode> Parser::parseExpression() {
-    if (check(TokenType::PIPE)) {
-        error("Empty alternation branch (missing left side)");
-    }
+    if (check(TokenType::PIPE)) error("Empty alternation branch");
     auto left = parseTerm();
-
     while (match(TokenType::PIPE)) {
-        if (isAtEnd() || peek().type == TokenType::RPAREN || peek().type == TokenType::PIPE || peek().type == TokenType::END_OF_INPUT) {
-            error("Empty alternation branch");
-        }
         auto right = parseTerm();
         left = std::make_unique<UnionNode>(std::move(left), std::move(right));
     }
-
     return left;
 }
 
@@ -84,18 +78,34 @@ std::unique_ptr<ASTNode> Parser::parseAtom() {
 
     if (match(TokenType::LPAREN)) {
         auto node = parseExpression();
-        if (!match(TokenType::RPAREN)) {
-            error("Unmatched parenthesis: expected ')'");
+        if (!match(TokenType::RPAREN)) error("Unmatched parenthesis");
+        return node;
+    }
+
+    if (match(TokenType::LBRACKET)) {
+        auto node = std::make_unique<CharClassNode>();
+        while (!check(TokenType::RBRACKET) && !isAtEnd()) {
+            if (peek().type == TokenType::END_OF_INPUT) error("Unterminated char class");
+            char start = advance().value;
+            if (peek().value == '-' && pos + 1 < tokens.size() && 
+                (tokens[pos+1].type == TokenType::LITERAL || tokens[pos+1].type == TokenType::DOT)) {
+                advance(); // consume '-'
+                char end = advance().value;
+                for (int c = start; c <= end; ++c) node->characters.insert(static_cast<unsigned char>(c));
+            } else {
+                node->characters.insert(static_cast<unsigned char>(start));
+            }
         }
+        if (!match(TokenType::RBRACKET)) error("Expected ']' after char class");
         return node;
     }
 
     if (peek().type == TokenType::STAR || peek().type == TokenType::PLUS || peek().type == TokenType::QUESTION) {
-        error("Quantifier '" + tokenTypeToString(peek().type) + "' applied to nothing");
+        error("Quantifier applied to nothing");
     }
 
     error("Unexpected token: " + tokenTypeToString(peek().type));
-    return nullptr; // Should not reach here
+    return nullptr;
 }
 
 const Token& Parser::peek() const {
